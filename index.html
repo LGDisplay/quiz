@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Quiz Từ Vựng</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --primary: #4CAF50;
+      --danger: #f44336;
+      --light: #f1f1f1;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #fff;
+      padding: 20px;
+      max-width: 600px;
+      margin: auto;
+      color: #333;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    input[type="number"], button {
+      font-size: 16px;
+      padding: 10px;
+      margin: 10px 0;
+    }
+
+    .question {
+      margin: 20px 0;
+    }
+
+    .options {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .options button {
+      background-color: var(--light);
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .options button:hover {
+      background-color: #e0e0e0;
+    }
+
+    #result {
+      font-weight: bold;
+      margin-top: 15px;
+      font-size: 18px;
+    }
+
+    #nextBtn {
+      display: none;
+      margin-top: 10px;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 15px;
+      }
+      .options button {
+        font-size: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Trắc Nghiệm Từ Vựng</h1>
+  <div>
+    <label>Số câu hỏi:
+      <input type="number" id="questionCount" value="5" min="1">
+    </label>
+    <button onclick="startQuiz()">Bắt đầu</button>
+  </div>
+
+  <div id="quizContainer" style="display:none;">
+    <div id="quiz"></div>
+    <button id="nextBtn" onclick="nextQuestion()">Câu tiếp</button>
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const SHEET_ID = '12toS1i8xTwjWauVUICzgNyW-ZYBgk32z9nyRlIMFHYQ'; // ← Thay bằng Sheet ID
+    const SHEET_NAME = 'English';
+    const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${SHEET_NAME}`;
+
+    let data = [], quiz = [], current = 0, correct = 0;
+
+    function startQuiz() {
+      fetch(SHEET_URL)
+        .then(res => res.text())
+        .then(text => {
+          const json = JSON.parse(text.substr(47).slice(0, -2));
+          data = json.table.rows.map(row => ({
+            english: row.c[0]?.v || '',
+            vietnamese: row.c[1]?.v || ''
+          })).filter(row => row.english && row.vietnamese);
+
+          if (data.length < 4) {
+            alert("Danh sách từ quá ít (ít nhất 4 từ).");
+            return;
+          }
+
+          generateQuiz();
+        });
+    }
+
+    function generateQuiz() {
+      const count = parseInt(document.getElementById('questionCount').value);
+      const shuffled = [...data].sort(() => 0.5 - Math.random());
+      const availableCount = Math.min(count, data.length);
+
+      quiz = shuffled.slice(0, availableCount).map(q => {
+        const wrongs = new Set();
+        while (wrongs.size < 3) {
+          const random = data[Math.floor(Math.random() * data.length)];
+          if (random.vietnamese !== q.vietnamese) {
+            wrongs.add(random.vietnamese);
+          }
+        }
+
+        const options = [...wrongs, q.vietnamese].sort(() => 0.5 - Math.random());
+        return { question: q.english, answer: q.vietnamese, options };
+      });
+
+      current = 0;
+      correct = 0;
+      document.getElementById('quizContainer').style.display = 'block';
+      showQuestion();
+    }
+
+    function showQuestion() {
+      document.getElementById('nextBtn').style.display = 'none';
+
+      if (current >= quiz.length) {
+        document.getElementById('quiz').innerHTML = '';
+        document.getElementById('result').textContent = `🎉 Hoàn thành! Bạn đúng ${correct}/${quiz.length} câu.`;
+        return;
+      }
+
+      const q = quiz[current];
+      document.getElementById('result').textContent = '';
+      document.getElementById('quiz').innerHTML = `
+        <div class="question">
+          <h3>Câu ${current + 1}/${quiz.length}: "${q.question}" nghĩa là gì?</h3>
+          <div class="options">
+            ${q.options.map(opt => `<button onclick="checkAnswer(this, '${opt}', '${q.answer}')">${opt}</button>`).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function checkAnswer(button, selected, correctAnswer) {
+      const buttons = document.querySelectorAll('.options button');
+      buttons.forEach(btn => {
+        btn.disabled = true;
+        if (btn.textContent === correctAnswer) btn.style.backgroundColor = '#c8f7c5'; // xanh
+        else if (btn.textContent === selected) btn.style.backgroundColor = '#f8c8c8'; // đỏ
+      });
+
+      if (selected === correctAnswer) {
+        correct++;
+        document.getElementById('result').textContent = '✅ Chính xác!';
+        setTimeout(() => {
+          current++;
+          showQuestion();
+        }, 3000); // tự chuyển câu sau 5 giây
+      } else {
+        document.getElementById('result').textContent = `❌ Sai! Đáp án đúng: ${correctAnswer}`;
+        document.getElementById('nextBtn').style.display = 'inline-block';
+      }
+    }
+
+    function nextQuestion() {
+      current++;
+      showQuestion();
+    }
+  </script>
+</body>
+</html>

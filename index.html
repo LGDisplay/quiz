@@ -1,89 +1,74 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Quiz Từ Vựng</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
-    :root {
-      --primary: #4CAF50;
-      --danger: #f44336;
-      --light: #f1f1f1;
-    }
-
     body {
       font-family: 'Segoe UI', sans-serif;
-      background-color: #fff;
+      background: #f9f9f9;
       padding: 20px;
       max-width: 600px;
       margin: auto;
       color: #333;
     }
-
     h1 {
       text-align: center;
       margin-bottom: 20px;
     }
-
-    input[type="number"], button {
+    input[type="number"], button, input[type="text"] {
       font-size: 16px;
       padding: 10px;
       margin: 10px 0;
+      width: 100%;
+      box-sizing: border-box;
     }
-
     .question {
-      margin: 20px 0;
+      margin-top: 20px;
     }
-
-    .options {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
     .options button {
-      background-color: var(--light);
+      background-color: #f1f1f1;
       border: 1px solid #ccc;
       border-radius: 8px;
       padding: 12px;
       font-size: 16px;
+      margin-bottom: 10px;
       cursor: pointer;
-      transition: background 0.3s;
     }
-
     .options button:hover {
-      background-color: #e0e0e0;
+      background-color: #ddd;
     }
-
+    .correct {
+      background-color: #c8f7c5 !important;
+    }
+    .wrong {
+      background-color: #f8c8c8 !important;
+    }
     #result {
       font-weight: bold;
       margin-top: 15px;
       font-size: 18px;
     }
-
     #nextBtn {
       display: none;
       margin-top: 10px;
     }
-
-    @media (max-width: 600px) {
-      body {
-        padding: 15px;
-      }
-      .options button {
-        font-size: 18px;
-      }
+    .explanation {
+      margin-top: 10px;
+      font-size: 14px;
+      background: #f4f4f4;
+      padding: 10px;
+      border-radius: 6px;
     }
   </style>
 </head>
 <body>
-  <h1>Trắc Nghiệm Từ Vựng</h1>
-  <div>
-    <label>Số câu hỏi:
-      <input type="number" id="questionCount" value="5" min="1">
-    </label>
-    <button onclick="startQuiz()">Bắt đầu</button>
-  </div>
+  <h1>Quiz Từ Vựng</h1>
+  <label>Số câu hỏi:
+    <input type="number" id="questionCount" value="6" min="1" />
+  </label>
+  <button onclick="startQuiz()">Bắt đầu</button>
 
   <div id="quizContainer" style="display:none;">
     <div id="quiz"></div>
@@ -103,13 +88,13 @@
         .then(res => res.text())
         .then(text => {
           const json = JSON.parse(text.substr(47).slice(0, -2));
-          data = json.table.rows.map(row => ({
-            english: row.c[0]?.v || '',
-            vietnamese: row.c[1]?.v || ''
-          })).filter(row => row.english && row.vietnamese);
+          data = json.table.rows.map(r => ({
+            english: r.c[0]?.v?.trim() || '',
+            vietnamese: r.c[1]?.v?.trim() || ''
+          })).filter(d => d.english && d.vietnamese);
 
           if (data.length < 4) {
-            alert("Danh sách từ quá ít (ít nhất 4 từ).");
+            alert("Danh sách từ quá ít!");
             return;
           }
 
@@ -121,20 +106,47 @@
       const count = parseInt(document.getElementById('questionCount').value);
       const shuffled = [...data].sort(() => 0.5 - Math.random());
       const availableCount = Math.min(count, data.length);
+      const numWritten = Math.floor(availableCount * 2 / 6);
+      const numMC = availableCount - numWritten;
 
-      quiz = shuffled.slice(0, availableCount).map(q => {
+      const questions = [];
+      const used = new Set();
+
+      function getUniqueQuestion() {
+        let entry;
+        do {
+          entry = shuffled[Math.floor(Math.random() * shuffled.length)];
+        } while (used.has(entry.english + entry.vietnamese));
+        used.add(entry.english + entry.vietnamese);
+        return entry;
+      }
+
+      for (let i = 0; i < numMC; i++) {
+        const q = getUniqueQuestion();
+        const isReversed = Math.random() < 0.5;
+        const correct = isReversed ? q.english : q.vietnamese;
+        const prompt = isReversed ? q.vietnamese : q.english;
+
         const wrongs = new Set();
         while (wrongs.size < 3) {
-          const random = data[Math.floor(Math.random() * data.length)];
-          if (random.vietnamese !== q.vietnamese) {
-            wrongs.add(random.vietnamese);
-          }
+          const r = data[Math.floor(Math.random() * data.length)];
+          const distractor = isReversed ? r.english : r.vietnamese;
+          if (distractor !== correct) wrongs.add(distractor);
         }
 
-        const options = [...wrongs, q.vietnamese].sort(() => 0.5 - Math.random());
-        return { question: q.english, answer: q.vietnamese, options };
-      });
+        const options = [...wrongs, correct].sort(() => 0.5 - Math.random());
+        questions.push({ type: "mc", prompt, correct, options, isReversed });
+      }
 
+      for (let i = 0; i < numWritten; i++) {
+        const q = getUniqueQuestion();
+        const isReversed = Math.random() < 0.5;
+        const prompt = isReversed ? q.vietnamese : q.english;
+        const answer = isReversed ? q.english : q.vietnamese;
+        questions.push({ type: "written", prompt, correct: answer });
+      }
+
+      quiz = questions.sort(() => 0.5 - Math.random());
       current = 0;
       correct = 0;
       document.getElementById('quizContainer').style.display = 'block';
@@ -143,32 +155,60 @@
 
     function showQuestion() {
       document.getElementById('nextBtn').style.display = 'none';
+      document.getElementById('result').textContent = '';
 
       if (current >= quiz.length) {
         document.getElementById('quiz').innerHTML = '';
-        document.getElementById('result').textContent = `🎉 Hoàn thành! Bạn đúng ${correct}/${quiz.length} câu.`;
+        document.getElementById('result').innerHTML = `🎉 Hoàn thành! Bạn đúng ${correct}/${quiz.length} câu.`;
         return;
       }
 
       const q = quiz[current];
-      document.getElementById('result').textContent = '';
-      document.getElementById('quiz').innerHTML = `
-        <div class="question">
-          <h3>Câu ${current + 1}/${quiz.length}: "${q.question}" nghĩa là gì?</h3>
-          <div class="options">
-            ${q.options.map(opt => `<button onclick="checkAnswer(this, '${opt}', '${q.answer}')">${opt}</button>`).join('')}
+      if (q.type === 'mc') {
+        document.getElementById('quiz').innerHTML = `
+          <div class="question">
+            <h3>Câu ${current + 1}/${quiz.length}: "${q.prompt}" nghĩa là gì?</h3>
+            <div class="options">
+              ${q.options.map(opt => `<button onclick="checkMC(this, '${opt}', '${q.correct}', ${q.isReversed})">${opt}</button>`).join('')}
+            </div>
+            <div id="explanation"></div>
           </div>
-        </div>
-      `;
+        `;
+      } else {
+        document.getElementById('quiz').innerHTML = `
+          <div class="question">
+            <h3>Câu ${current + 1}/${quiz.length}: "${q.prompt}" tiếng ${isVietnamese(q.prompt) ? 'Anh' : 'Việt'} là gì?</h3>
+            <input type="text" id="writtenAnswer" placeholder="Nhập câu trả lời">
+            <button onclick="checkWritten()">Nộp</button>
+          </div>
+        `;
+      }
     }
 
-    function checkAnswer(button, selected, correctAnswer) {
+    function isVietnamese(text) {
+      return /[ạáàảãâấầẩẫậăắằẵặêếềễệịỉóòõọôốồộơớờởợúùủũụưứừửữựỳýỵỷỹđ]/i.test(text);
+    }
+
+    function findExplanation(word, isReversed) {
+      const entry = data.find(e => isReversed ? e.english === word : e.vietnamese === word);
+      return isReversed ? (entry ? entry.vietnamese : '-') : (entry ? entry.english : '-');
+    }
+
+    function checkMC(button, selected, correctAnswer, isReversed) {
       const buttons = document.querySelectorAll('.options button');
       buttons.forEach(btn => {
         btn.disabled = true;
-        if (btn.textContent === correctAnswer) btn.style.backgroundColor = '#c8f7c5'; // xanh
-        else if (btn.textContent === selected) btn.style.backgroundColor = '#f8c8c8'; // đỏ
+        if (btn.textContent === correctAnswer) btn.classList.add('correct');
+        else if (btn.textContent === selected) btn.classList.add('wrong');
       });
+
+      let explainHTML = '<div class="explanation"><b>Giải thích:</b><br>';
+      quiz[current].options.forEach(opt => {
+        const meaning = findExplanation(opt, isReversed);
+        explainHTML += `- ${opt}: ${meaning}<br>`;
+      });
+      explainHTML += '</div>';
+      document.getElementById('explanation').innerHTML = explainHTML;
 
       if (selected === correctAnswer) {
         correct++;
@@ -176,9 +216,25 @@
         setTimeout(() => {
           current++;
           showQuestion();
-        }, 3000); // tự chuyển câu sau 5 giây
+        }, 5000);
       } else {
         document.getElementById('result').textContent = `❌ Sai! Đáp án đúng: ${correctAnswer}`;
+        document.getElementById('nextBtn').style.display = 'inline-block';
+      }
+    }
+
+    function checkWritten() {
+      const input = document.getElementById('writtenAnswer').value.trim().toLowerCase();
+      const correctAns = quiz[current].correct.trim().toLowerCase();
+      if (input === correctAns) {
+        correct++;
+        document.getElementById('result').textContent = '✅ Chính xác!';
+        setTimeout(() => {
+          current++;
+          showQuestion();
+        }, 5000);
+      } else {
+        document.getElementById('result').textContent = `❌ Sai! Đáp án đúng: ${quiz[current].correct}`;
         document.getElementById('nextBtn').style.display = 'inline-block';
       }
     }

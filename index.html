@@ -27,13 +27,17 @@
     .question {
       margin-top: 20px;
     }
+    .options div {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
     .options button {
       background-color: #f1f1f1;
       border: 1px solid #ccc;
       border-radius: 8px;
       padding: 12px;
       font-size: 16px;
-      margin-bottom: 10px;
       cursor: pointer;
     }
     .options button:hover {
@@ -60,6 +64,22 @@
       background: #f4f4f4;
       padding: 10px;
       border-radius: 6px;
+    }
+    .speakBtn {
+      margin-left: 8px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 34px;
+      height: 34px;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      user-select: none;
+    }
+    .speakBtn:hover {
+      background: #0056b3;
     }
   </style>
 </head>
@@ -165,11 +185,19 @@
 
       const q = quiz[current];
       if (q.type === 'mc') {
+        // Kiểm tra xem prompt có phải tiếng Việt không (tức là câu hỏi từ tiếng Việt sang tiếng Anh)
+        const showSpeaker = isVietnamese(q.prompt);
+        
         document.getElementById('quiz').innerHTML = `
           <div class="question">
             <h3>Câu ${current + 1}/${quiz.length}: "${q.prompt}" nghĩa là gì?</h3>
             <div class="options">
-              ${q.options.map(opt => `<button onclick="checkMC(this, '${opt}', '${q.correct}', ${q.isReversed})">${opt}</button>`).join('')}
+              ${q.options.map(opt => `
+                <div>
+                  <button onclick="checkMC(this, '${opt}', '${q.correct}', ${q.isReversed})">${opt}</button>
+                  ${showSpeaker ? `<button class="speakBtn" onclick="speak('${getEnglishWord(opt, q.isReversed)}', event)">🔊</button>` : ''}
+                </div>
+              `).join('')}
             </div>
             <div id="explanation"></div>
           </div>
@@ -187,6 +215,12 @@
 
     function isVietnamese(text) {
       return /[ạáàảãâấầẩẫậăắằẵặêếềễệịỉóòõọôốồộơớờởợúùủũụưứừửữựỳýỵỷỹđ]/i.test(text);
+    }
+
+    function getEnglishWord(word, isReversed) {
+      if (!isReversed) return word;
+      const entry = data.find(e => e.vietnamese === word);
+      return entry ? entry.english : word;
     }
 
     function findExplanation(word, isReversed) {
@@ -226,9 +260,11 @@
     function checkWritten() {
       const input = document.getElementById('writtenAnswer').value.trim().toLowerCase();
       const correctAns = quiz[current].correct.trim().toLowerCase();
+
       if (input === correctAns) {
         correct++;
         document.getElementById('result').textContent = '✅ Chính xác!';
+        document.getElementById('nextBtn').style.display = 'none';
         setTimeout(() => {
           current++;
           showQuestion();
@@ -237,11 +273,26 @@
         document.getElementById('result').textContent = `❌ Sai! Đáp án đúng: ${quiz[current].correct}`;
         document.getElementById('nextBtn').style.display = 'inline-block';
       }
+
+      // Disable input và nút nộp
+      document.getElementById('writtenAnswer').disabled = true;
+      event.target.disabled = true;
     }
 
     function nextQuestion() {
       current++;
       showQuestion();
+    }
+
+    function speak(text, event) {
+      event.stopPropagation(); // tránh nút câu hỏi bị kích hoạt khi bấm nút này
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'en-US';
+        window.speechSynthesis.speak(utterance);
+      } else {
+        alert('Trình duyệt không hỗ trợ tính năng phát âm.');
+      }
     }
   </script>
 </body>
